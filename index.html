@@ -3,32 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Roll the Dice</title>
+  <title>DICE — Roll</title>
 
-  <!-- Playfair Display for the old-school casino feel, Courier for numbers -->
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+  <!-- Bebas Neue for bold display headings, JetBrains Mono for numbers/mono text -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
 
   <style>
     /* ============================================================
-       CSS Custom Properties — change these to retheme the whole page
+       Design Tokens — single source of truth for all colours/sizes.
+       Change here, everything updates.
        ============================================================ */
     :root {
-      --felt:        #1a3a2a;   /* classic green casino felt */
-      --felt-dark:   #0f2318;
-      --ivory:       #f5f0e8;
-      --gold:        #c9a84c;
-      --gold-light:  #e8c96a;
-      --die-face:    #fffff5;
-      --die-shadow:  rgba(0,0,0,0.55);
-      --pip:         #1c1c1c;
-      --pip-one:     #c0392b;   /* the "1" pip is red, classic rule */
-      --text-muted:  rgba(245,240,232,0.5);
+      --black:        #080808;
+      --black-2:      #111111;
+      --black-3:      #1a1a1a;
+      --black-4:      #242424;
+      --white:        #f0f0f0;
+      --white-dim:    rgba(240,240,240,0.35);
+      --white-ghost:  rgba(240,240,240,0.08);
 
-      --roll-duration: 600ms;   /* how long the shake animation takes */
+      /* Accent — sharp crimson, used sparingly */
+      --red:          #e03030;
+      --red-dim:      rgba(224,48,48,0.18);
+      --red-glow:     rgba(224,48,48,0.45);
+
+      /* Die face */
+      --die-bg:       #f5f5f5;
+      --die-edge:     #c8c8c8;
+      --pip-dark:     #111111;
+      --pip-one:      #e03030;   /* center pip on "1" is always red */
+
+      --border:       rgba(240,240,240,0.1);
+      --border-focus: rgba(240,240,240,0.3);
+
+      --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     /* ============================================================
-       Reset + Base
+       Reset
        ============================================================ */
     *, *::before, *::after {
       box-sizing: border-box;
@@ -37,175 +49,189 @@
     }
 
     body {
-      background-color: var(--felt-dark);
-      background-image:
-        /* subtle felt texture using repeating radial gradients */
-        radial-gradient(ellipse at 20% 20%, rgba(255,255,255,0.03) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 80%, rgba(255,255,255,0.02) 0%, transparent 50%),
-        /* the actual felt grain — tiny repeated dots */
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Ccircle cx='1' cy='1' r='0.6' fill='rgba(255,255,255,0.04)'/%3E%3C/svg%3E");
+      background-color: var(--black);
+      /* Subtle noise so it doesn't look like a void */
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      color: var(--white);
+      font-family: 'JetBrains Mono', monospace;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       Page container
+       ============================================================ */
+    .page {
+      width: 100%;
+      max-width: 680px;
+      padding: 60px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       gap: 48px;
-      padding: 40px 20px;
-      font-family: 'Courier Prime', monospace;
-      color: var(--ivory);
-      /* subtle inner vignette to feel like a spotlight on the table */
-      box-shadow: inset 0 0 200px rgba(0,0,0,0.6);
     }
 
     /* ============================================================
        Header
        ============================================================ */
-    header {
+    .header {
       text-align: center;
+      width: 100%;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
     }
 
-    header h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2rem, 5vw, 3.5rem);
-      color: var(--gold);
-      letter-spacing: 0.08em;
-      text-shadow: 0 2px 20px rgba(201,168,76,0.4);
-      line-height: 1.1;
-    }
-
-    header p {
-      margin-top: 8px;
-      font-size: 0.85rem;
-      letter-spacing: 0.2em;
+    .header__eyebrow {
+      font-size: 0.65rem;
+      letter-spacing: 0.5em;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: var(--white-dim);
+      margin-bottom: 10px;
+    }
+
+    .header__title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.5rem, 12vw, 7rem);
+      letter-spacing: 0.12em;
+      line-height: 1;
+      /* Red first letter only, using background-clip */
+      background: linear-gradient(90deg, var(--red) 0%, var(--red) 1ch, var(--white) 1ch);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header__sub {
+      margin-top: 8px;
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--white-dim);
     }
 
     /* ============================================================
-       Die count picker — lets the user roll 1, 2, or 3 dice
+       Dice count picker
        ============================================================ */
     .picker {
       display: flex;
       align-items: center;
-      gap: 12px;
+      background: var(--black-3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      gap: 0;
     }
 
-    .picker label {
-      font-size: 0.75rem;
-      letter-spacing: 0.2em;
+    .picker__label {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: var(--white-dim);
+      padding: 0 14px 0 10px;
+      border-right: 1px solid var(--border);
+      margin-right: 4px;
+      white-space: nowrap;
     }
 
-    .picker-btn {
-      width: 36px;
+    .picker__btn {
+      width: 44px;
       height: 36px;
-      border-radius: 6px;
-      border: 1px solid rgba(201,168,76,0.3);
       background: transparent;
-      color: var(--gold);
-      font-family: 'Courier Prime', monospace;
-      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      color: var(--white-dim);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
       font-weight: 700;
       cursor: pointer;
-      transition: background 0.2s, border-color 0.2s, transform 0.1s;
+      transition: background 0.18s, color 0.18s, transform 0.1s;
     }
 
-    .picker-btn:hover {
-      background: rgba(201,168,76,0.1);
-      border-color: var(--gold);
-    }
-
-    .picker-btn.active {
-      background: var(--gold);
-      color: var(--felt-dark);
-      border-color: var(--gold);
-    }
-
-    .picker-btn:active {
-      transform: scale(0.92);
-    }
+    .picker__btn:hover { background: var(--white-ghost); color: var(--white); }
+    .picker__btn.active { background: var(--red); color: #fff; }
+    .picker__btn.active:hover { background: var(--red); }
+    .picker__btn:active { transform: scale(0.9); }
 
     /* ============================================================
-       The tray that holds the dice — mimics a felt rolling surface
+       Tray
        ============================================================ */
     .tray {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 32px;
-      /* min-height keeps layout stable as dice appear/disappear */
+      gap: 28px;
+      width: 100%;
       min-height: 160px;
     }
 
     /* ============================================================
-       Individual die — the heart of this whole thing
+       Die
        ============================================================ */
     .die {
-      width: 120px;
-      height: 120px;
-      background: var(--die-face);
-      border-radius: 20px;
+      width: 130px;
+      height: 130px;
+      background: var(--die-bg);
+      border-radius: 22px;
       position: relative;
       cursor: pointer;
+      user-select: none;
 
-      /* That classic dice 3D look with layered shadows */
       box-shadow:
-        0 2px 0 #ccc,
-        0 4px 0 #bbb,
-        0 6px 0 #aaa,
-        0 10px 30px var(--die-shadow),
-        inset 0 1px 2px rgba(255,255,255,0.9);
+        3px 3px 0   var(--die-edge),
+        6px 6px 0   #b0b0b0,
+        0  16px 40px rgba(0,0,0,0.75),
+        inset 0 1px 0 rgba(255,255,255,0.9);
 
-      /* smooth everything except the roll animation */
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-
-      /* die starts invisible and slides in */
-      animation: dieEnter 0.35s ease both;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      animation: dieIn 0.4s var(--ease-back) both;
     }
 
-    @keyframes dieEnter {
-      from { opacity: 0; transform: translateY(-20px) scale(0.85); }
-      to   { opacity: 1; transform: translateY(0)    scale(1);    }
+    .die:nth-child(2) { animation-delay: 0.05s; }
+    .die:nth-child(3) { animation-delay: 0.10s; }
+
+    @keyframes dieIn {
+      from { opacity: 0; transform: scale(0.7) translateY(-10px); }
+      to   { opacity: 1; transform: scale(1)   translateY(0); }
     }
 
-    /* Lift the die slightly when hovering — invites a click */
     .die:hover {
-      transform: translateY(-4px) scale(1.03);
+      transform: translateY(-6px) rotate(-1.5deg);
       box-shadow:
-        0 2px 0 #ccc,
-        0 4px 0 #bbb,
-        0 6px 0 #aaa,
-        0 16px 40px var(--die-shadow),
-        inset 0 1px 2px rgba(255,255,255,0.9);
+        3px 3px 0   var(--die-edge),
+        6px 6px 0   #b0b0b0,
+        0  28px 55px rgba(0,0,0,0.8),
+        inset 0 1px 0 rgba(255,255,255,0.9);
     }
 
-    /* The shake/roll keyframe — quick chaotic rotation then snaps level */
-    @keyframes rolling {
-      0%   { transform: rotate(0deg)    scale(1);    }
-      15%  { transform: rotate(-22deg)  scale(0.95); }
-      30%  { transform: rotate(18deg)   scale(1.05); }
-      45%  { transform: rotate(-14deg)  scale(0.97); }
-      60%  { transform: rotate(10deg)   scale(1.03); }
-      75%  { transform: rotate(-6deg)   scale(0.99); }
-      90%  { transform: rotate(3deg)    scale(1.01); }
-      100% { transform: rotate(0deg)    scale(1);    }
+    /* Shake animation — erratic then snaps cleanly to 0 at 100% */
+    @keyframes roll {
+      0%   { transform: rotate(0deg)   scale(1);    }
+      12%  { transform: rotate(-25deg) scale(0.93); }
+      28%  { transform: rotate(20deg)  scale(1.07); }
+      44%  { transform: rotate(-15deg) scale(0.96); }
+      60%  { transform: rotate(11deg)  scale(1.04); }
+      74%  { transform: rotate(-6deg)  scale(0.98); }
+      87%  { transform: rotate(3deg)   scale(1.02); }
+      100% { transform: rotate(0deg)   scale(1); }
     }
 
     .die.rolling {
-      animation: rolling var(--roll-duration) ease;
+      animation: roll 650ms ease;
       cursor: not-allowed;
-      /* blur the pips mid-roll so numbers aren't readable while spinning */
-      filter: blur(0px);
+      pointer-events: none;
     }
 
-    /* Hide the pip grid while rolling (we swap it in after) */
+    /* Blur pips while spinning so the value isn't readable mid-roll */
     .die.rolling .pip-grid {
-      opacity: 0;
+      filter: blur(3px);
+      opacity: 0.2;
     }
 
     /* ============================================================
-       Pip grid — 3x3 layout for placing dots precisely
+       Pip grid — 3×3 named slots
        ============================================================ */
     .pip-grid {
       width: 100%;
@@ -213,498 +239,881 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows:    repeat(3, 1fr);
-      padding: 18px;
-      gap: 6px;
-      transition: opacity 0.1s ease;
+      padding: 20px;
+      gap: 5px;
+      transition: filter 0.15s, opacity 0.15s;
     }
 
-    /* Each pip slot is a cell that can be shown or hidden */
     .pip {
       border-radius: 50%;
-      background: var(--pip);
-      /* use transform scale instead of display:none for smooth animation */
+      background: var(--pip-dark);
       transform: scale(0);
-      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform 0.22s var(--ease-back);
     }
 
-    /* The "1" in the middle is red — a well-known dice tradition */
-    .pip.center {
-      background: var(--pip-one);
-    }
+    .pip.pip--red  { background: var(--pip-one); } /* only for center on face 1 */
+    .pip.visible   { transform: scale(1); }
 
-    /* When active, pip "pops" into place */
-    .pip.visible {
-      transform: scale(1);
-    }
+    /* Named grid positions */
+    .pip--tl { grid-column: 1; grid-row: 1; }
+    .pip--tr { grid-column: 3; grid-row: 1; }
+    .pip--ml { grid-column: 1; grid-row: 2; }
+    .pip--mc { grid-column: 2; grid-row: 2; }
+    .pip--mr { grid-column: 3; grid-row: 2; }
+    .pip--bl { grid-column: 1; grid-row: 3; }
+    .pip--br { grid-column: 3; grid-row: 3; }
 
     /* ============================================================
-       Grid positions for the 9 possible pip slots.
-       Named by position (tl=top-left, mc=middle-center, etc.)
+       Result display
        ============================================================ */
-    .pip-tl { grid-column: 1; grid-row: 1; }
-    .pip-tr { grid-column: 3; grid-row: 1; }
-    .pip-ml { grid-column: 1; grid-row: 2; }
-    .pip-mc { grid-column: 2; grid-row: 2; }
-    .pip-mr { grid-column: 3; grid-row: 2; }
-    .pip-bl { grid-column: 1; grid-row: 3; }
-    .pip-br { grid-column: 3; grid-row: 3; }
-
-    /* ============================================================
-       Total score display
-       ============================================================ */
-    .result-area {
+    .result {
       text-align: center;
-      min-height: 60px; /* prevent layout shift */
+      min-height: 90px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
 
-    .result-label {
-      font-size: 0.7rem;
+    .result__label {
+      font-size: 0.65rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--white-dim);
+    }
+
+    .result__value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 5rem;
+      line-height: 1;
+      color: var(--white);
+      opacity: 0;
+      transform: scale(0.75);
+      transition: opacity 0.3s ease, transform 0.35s var(--ease-back);
+    }
+
+    .result__value.visible { opacity: 1; transform: scale(1); }
+
+    .result__value.jackpot {
+      color: var(--red);
+      text-shadow: 0 0 60px var(--red-glow);
+      animation: jackpot 0.9s ease-in-out infinite alternate;
+    }
+
+    @keyframes jackpot {
+      from { text-shadow: 0 0 30px var(--red-glow); }
+      to   { text-shadow: 0 0 80px var(--red-glow), 0 0 20px #ff6666; }
+    }
+
+    .result__tag {
+      font-size: 0.6rem;
       letter-spacing: 0.3em;
       text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
-    .result-value {
-      font-family: 'Playfair Display', serif;
-      font-size: 3.5rem;
-      color: var(--gold);
-      line-height: 1;
+      color: var(--red);
       opacity: 0;
-      transform: scale(0.8);
-      transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      min-height: 1em;
+      transition: opacity 0.3s ease;
     }
 
-    .result-value.visible {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    /* Special flair for a natural max roll */
-    .result-value.jackpot {
-      color: var(--gold-light);
-      text-shadow: 0 0 30px rgba(232,201,106,0.6);
-      animation: jackpotPulse 1s ease infinite alternate;
-    }
-
-    @keyframes jackpotPulse {
-      from { text-shadow: 0 0 20px rgba(232,201,106,0.4); }
-      to   { text-shadow: 0 0 50px rgba(232,201,106,0.9); }
-    }
+    .result__tag.visible { opacity: 1; }
 
     /* ============================================================
-       Roll button
+       Controls
        ============================================================ */
-    .roll-btn {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.1rem;
-      letter-spacing: 0.15em;
-      color: var(--felt-dark);
-      background: linear-gradient(145deg, var(--gold-light), var(--gold));
-      border: none;
-      border-radius: 8px;
-      padding: 16px 52px;
-      cursor: pointer;
-      box-shadow:
-        0 4px 0 #8a6a20,
-        0 8px 20px rgba(0,0,0,0.4);
-      transition: transform 0.1s, box-shadow 0.1s;
-      position: relative;
-      overflow: hidden;
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
     }
 
-    /* Sheen that slides across on hover — purely decorative */
-    .roll-btn::after {
+    .btn-roll {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: 0.2em;
+      color: #fff;
+      background: var(--red);
+      border: none;
+      border-radius: 8px;
+      padding: 14px 54px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.12s, box-shadow 0.12s;
+      box-shadow: 0 4px 24px var(--red-dim), inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+
+    /* Light sweep on hover */
+    .btn-roll::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%);
-      transform: translateX(-100%);
-      transition: transform 0.4s ease;
+      background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.18) 50%, transparent 65%);
+      transform: translateX(-110%);
+      transition: transform 0.45s ease;
     }
 
-    .roll-btn:hover::after {
-      transform: translateX(100%);
+    .btn-roll:hover::after  { transform: translateX(110%); }
+    .btn-roll:hover         { transform: translateY(-3px); box-shadow: 0 10px 36px var(--red-dim); }
+    .btn-roll:active        { transform: translateY(1px);  box-shadow: 0 2px 10px var(--red-dim); }
+    .btn-roll:disabled      { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-reset {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--white-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 22px;
+      cursor: pointer;
+      transition: color 0.18s, border-color 0.18s, transform 0.1s;
     }
 
-    .roll-btn:hover {
-      transform: translateY(-2px);
-      box-shadow:
-        0 6px 0 #8a6a20,
-        0 12px 28px rgba(0,0,0,0.4);
+    .btn-reset:hover  { color: var(--white); border-color: var(--border-focus); }
+    .btn-reset:active { transform: scale(0.95); }
+
+    /* ============================================================
+       Stats bar
+       ============================================================ */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      width: 100%;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
     }
 
-    .roll-btn:active {
-      transform: translateY(3px);
-      box-shadow:
-        0 1px 0 #8a6a20,
-        0 4px 12px rgba(0,0,0,0.4);
+    .stat {
+      background: var(--black-2);
+      padding: 16px 12px;
+      text-align: center;
+      transition: background 0.2s;
     }
 
-    .roll-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
+    .stat:hover { background: var(--black-3); }
+
+    .stat__value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      line-height: 1;
+      color: var(--white);
+    }
+
+    .stat__label {
+      font-size: 0.58rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--white-dim);
+      margin-top: 4px;
     }
 
     /* ============================================================
-       History strip — last 10 rolls shown as badges
+       History strip
        ============================================================ */
-    .history-section {
-      text-align: center;
-    }
+    .history { width: 100%; }
 
-    .history-label {
-      font-size: 0.65rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-    }
-
-    .history-strip {
+    .history__header {
       display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
-      max-width: 420px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
     }
 
-    /* Each history badge */
-    .history-badge {
-      width: 34px;
-      height: 34px;
+    .history__title {
+      font-size: 0.65rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--white-dim);
+    }
+
+    .history__clear {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--white-dim);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.18s;
+    }
+
+    .history__clear:hover { color: var(--red); }
+
+    .history__strip {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      min-width: 36px;
+      height: 36px;
+      padding: 0 10px;
       border-radius: 6px;
-      border: 1px solid rgba(201,168,76,0.25);
-      background: rgba(201,168,76,0.07);
+      border: 1px solid var(--border);
+      background: var(--black-3);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 700;
-      color: var(--ivory);
-      animation: badgeIn 0.3s ease both;
+      color: var(--white-dim);
+      animation: badgeIn 0.3s var(--ease-back) both;
     }
 
     @keyframes badgeIn {
-      from { opacity: 0; transform: scale(0.6); }
-      to   { opacity: 1; transform: scale(1);   }
+      from { opacity: 0; transform: scale(0.5); }
+      to   { opacity: 1; transform: scale(1); }
     }
 
-    /* Most recent badge gets a gold tint */
-    .history-badge:last-child {
-      border-color: var(--gold);
-      background: rgba(201,168,76,0.2);
-      color: var(--gold);
+    .badge.badge--latest { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+    .badge.badge--max    { border-color: rgba(224,48,48,0.6); color: var(--white); }
+
+    /* ============================================================
+       Toast — error and event notifications
+       ============================================================ */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--black-4);
+      border: 1px solid var(--border-focus);
+      border-left: 3px solid var(--red);
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      color: var(--white);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 100;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ============================================================
+       Keyboard hints
+       ============================================================ */
+    .hint {
+      font-size: 0.6rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--white-dim);
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hint__key { display: inline-flex; align-items: center; gap: 6px; }
+
+    .hint__key kbd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      background: var(--black-3);
+      border: 1px solid var(--border-focus);
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: var(--white);
     }
 
     /* ============================================================
        Footer
        ============================================================ */
-    footer {
-      font-size: 0.65rem;
-      letter-spacing: 0.2em;
+    .footer {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: rgba(240,240,240,0.15);
+      text-align: center;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      width: 100%;
     }
 
     /* ============================================================
-       Responsive — shrink dice on small screens
+       Responsive
        ============================================================ */
-    @media (max-width: 480px) {
-      .die {
-        width: 90px;
-        height: 90px;
-        border-radius: 15px;
-      }
+    @media (max-width: 520px) {
+      .die { width: 100px; height: 100px; border-radius: 17px; }
+      .pip-grid { padding: 14px; gap: 4px; }
+      .tray { gap: 16px; }
+      .result__value { font-size: 4rem; }
+      .btn-roll { padding: 12px 40px; }
+    }
 
-      .pip-grid {
-        padding: 13px;
-        gap: 4px;
-      }
-
-      .tray {
-        gap: 18px;
-      }
-
-      .result-value {
-        font-size: 2.8rem;
-      }
+    @media (max-width: 360px) {
+      .die { width: 82px; height: 82px; }
+      .controls { flex-direction: column; width: 100%; }
+      .btn-roll, .btn-reset { width: 100%; text-align: center; }
     }
   </style>
 </head>
 <body>
+<div class="page">
 
-  <header>
-    <h1>Roll the Dice</h1>
-    <p>Press roll or click any die</p>
+  <!-- Header -->
+  <header class="header">
+    <p class="header__eyebrow">Casino Grade</p>
+    <h1 class="header__title">DICE</h1>
+    <p class="header__sub">Roll · Risk · Repeat</p>
   </header>
 
-  <!-- Picker to choose how many dice to roll -->
-  <div class="picker">
-    <span class="picker-label" style="font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-muted)">Dice:</span>
-    <button class="picker-btn active" data-count="1" onclick="setDiceCount(1)">1</button>
-    <button class="picker-btn"        data-count="2" onclick="setDiceCount(2)">2</button>
-    <button class="picker-btn"        data-count="3" onclick="setDiceCount(3)">3</button>
+  <!-- Dice count picker -->
+  <div class="picker" role="group" aria-label="Number of dice">
+    <span class="picker__label">Dice</span>
+    <button class="picker__btn active" data-count="1" aria-pressed="true"  onclick="setDiceCount(1)">1</button>
+    <button class="picker__btn"        data-count="2" aria-pressed="false" onclick="setDiceCount(2)">2</button>
+    <button class="picker__btn"        data-count="3" aria-pressed="false" onclick="setDiceCount(3)">3</button>
   </div>
 
-  <!-- Where the dice live -->
-  <div class="tray" id="tray"></div>
+  <!-- Dice tray -->
+  <div class="tray" id="tray" role="group" aria-label="Dice"></div>
 
-  <!-- Shows the current total -->
-  <div class="result-area">
-    <div class="result-label">Total</div>
-    <div class="result-value" id="resultValue">—</div>
+  <!-- Total result -->
+  <div class="result" aria-live="polite">
+    <div class="result__label">Total</div>
+    <div class="result__value" id="resultValue">—</div>
+    <div class="result__tag"   id="resultTag"></div>
   </div>
 
-  <button class="roll-btn" id="rollBtn" onclick="rollAll()">Roll</button>
-
-  <!-- Last 10 results -->
-  <div class="history-section">
-    <div class="history-label">Recent rolls</div>
-    <div class="history-strip" id="historyStrip"></div>
+  <!-- Roll / Reset -->
+  <div class="controls">
+    <button class="btn-roll"  id="rollBtn"  onclick="rollAll()">Roll</button>
+    <button class="btn-reset" id="resetBtn" onclick="resetEverything()">Reset</button>
   </div>
 
-  <footer>Click any die to re-roll it individually</footer>
+  <!-- Stats -->
+  <div class="stats" role="region" aria-label="Statistics">
+    <div class="stat">
+      <div class="stat__value" id="statTotal">0</div>
+      <div class="stat__label">Rolls</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value" id="statAvg">—</div>
+      <div class="stat__label">Average</div>
+    </div>
+    <div class="stat">
+      <div class="stat__value" id="statBest">—</div>
+      <div class="stat__label">Best</div>
+    </div>
+  </div>
 
-  <script>
-    // ============================================================
-    // State — just two variables, not an over-engineered store
-    // ============================================================
-    let diceCount = 1;       // how many dice are on the table
-    let dieValues = [1];     // current face values for each die
+  <!-- History -->
+  <div class="history">
+    <div class="history__header">
+      <span class="history__title">Recent rolls</span>
+      <button class="history__clear" onclick="clearHistory()">Clear</button>
+    </div>
+    <div class="history__strip" id="historyStrip" role="list"></div>
+  </div>
 
-    // The ROLL_DURATION has to match the CSS variable or the pip
-    // swap will happen at the wrong moment.
-    const ROLL_DURATION_MS = 600;
+  <!-- Keyboard hints -->
+  <div class="hint" aria-label="Keyboard shortcuts">
+    <span class="hint__key"><kbd>Space</kbd> Roll all</span>
+    <span class="hint__key"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Re-roll die</span>
+    <span class="hint__key"><kbd>R</kbd> Reset</span>
+  </div>
 
-    // ============================================================
-    // Pip layout per face value (1–6)
-    // Each string maps to a pip slot by class name.
-    // Order: tl, tr, ml, mc, mr, bl, br
-    // ============================================================
-    const PIP_MAP = {
-      1: ['mc'],                              // dead center, red
-      2: ['tl', 'br'],
-      3: ['tl', 'mc', 'br'],
-      4: ['tl', 'tr', 'bl', 'br'],
-      5: ['tl', 'tr', 'mc', 'bl', 'br'],
-      6: ['tl', 'tr', 'ml', 'mr', 'bl', 'br'],
-    };
+  <footer class="footer">Click any die to re-roll it individually</footer>
 
-    // All possible pip slot names (3×3 grid minus corners mc and mm which overlap)
-    const ALL_SLOTS = ['tl', 'tr', 'ml', 'mc', 'mr', 'bl', 'br'];
+</div>
 
-    // ============================================================
-    // Build the DOM for N dice, then show the current values
-    // ============================================================
-    function renderDice() {
-      const tray = document.getElementById('tray');
-      tray.innerHTML = '';  // wipe it — simpler than diffing
+<!-- Toast notification for errors and events -->
+<div class="toast" id="toast" role="alert" aria-live="assertive"></div>
 
-      for (let i = 0; i < diceCount; i++) {
-        const die = document.createElement('div');
-        die.className = 'die';
-        die.dataset.index = i;
+<script>
+  // ============================================================
+  // CONFIG — one place to change behavioural constants.
+  // Frozen so nothing can mutate it accidentally.
+  // ============================================================
+  const CONFIG = Object.freeze({
+    ROLL_MS:        650,   // must match the CSS animation duration above
+    MAX_HISTORY:    20,    // how many badges to keep before trimming
+    MAX_DICE:       3,
+    MIN_DICE:       1,
+    TOAST_MS:       2800,  // how long the toast stays on screen
+  });
 
-        // The click handler lets you re-roll a single die
-        die.onclick = () => rollSingle(i);
+  // ============================================================
+  // PIP LAYOUT TABLE
+  // Maps face value → which of the 7 grid slots are active.
+  // Slot names correspond to CSS class suffixes (tl, tr, ml…).
+  // ============================================================
+  const PIP_LAYOUT = Object.freeze({
+    1: ['mc'],
+    2: ['tl', 'br'],
+    3: ['tl', 'mc', 'br'],
+    4: ['tl', 'tr', 'bl', 'br'],
+    5: ['tl', 'tr', 'mc', 'bl', 'br'],
+    6: ['tl', 'tr', 'ml', 'mr', 'bl', 'br'],
+  });
 
-        // Build the 3×3 pip grid inside the die
-        const grid = document.createElement('div');
-        grid.className = 'pip-grid';
+  // All possible pip positions in the 3×3 grid (excluding corners)
+  const ALL_SLOTS = Object.freeze(['tl', 'tr', 'ml', 'mc', 'mr', 'bl', 'br']);
 
-        ALL_SLOTS.forEach(slot => {
-          const pip = document.createElement('div');
-          // 'center' class gives the mc pip its red colour
-          pip.className = `pip pip-${slot}${slot === 'mc' ? ' center' : ''}`;
-          pip.dataset.slot = slot;
-          grid.appendChild(pip);
-        });
+  // ============================================================
+  // APPLICATION STATE
+  // All mutation goes through dedicated functions — never inline.
+  // ============================================================
+  const state = {
+    diceCount: 1,     // how many dice are on the table right now
+    values:    [1],   // current face value for each die (index matches DOM order)
+    rollCount: 0,     // total rolls ever (counts individual die rolls too)
+    rollSums:  [],    // history of totals, used for average and best
+    isRolling: false, // guard flag — prevents overlapping animations
+  };
 
-        die.appendChild(grid);
-        tray.appendChild(die);
+  // ============================================================
+  // DOM REFS
+  // Functions instead of cached vars so they always hit the live DOM.
+  // The overhead is negligible and avoids stale-reference bugs.
+  // ============================================================
+  const DOM = {
+    tray:         () => document.getElementById('tray'),
+    rollBtn:      () => document.getElementById('rollBtn'),
+    resultValue:  () => document.getElementById('resultValue'),
+    resultTag:    () => document.getElementById('resultTag'),
+    statTotal:    () => document.getElementById('statTotal'),
+    statAvg:      () => document.getElementById('statAvg'),
+    statBest:     () => document.getElementById('statBest'),
+    historyStrip: () => document.getElementById('historyStrip'),
+    toast:        () => document.getElementById('toast'),
+    dice:         () => document.querySelectorAll('.die'),
+    pickerBtns:   () => document.querySelectorAll('.picker__btn'),
+  };
 
-        // Show the value we already have stored for this die
-        updateDieFace(i, dieValues[i], false /* no animation on first render */);
-      }
+  // ============================================================
+  // UTILITIES
+  // ============================================================
 
-      // Refresh the total display with whatever values are loaded
-      updateTotal();
-    }
+  /** Returns a random integer from 1 to 6 inclusive */
+  function rollD6() {
+    return Math.floor(Math.random() * 6) + 1;
+  }
 
-    // ============================================================
-    // Flip the pips on a specific die to show a given value.
-    // If `animate` is true we delay slightly so pips appear *after*
-    // the roll animation finishes.
-    // ============================================================
-    function updateDieFace(index, value, animate = true) {
-      const die = document.querySelectorAll('.die')[index];
-      if (!die) return;
+  /** Sum an array of numbers */
+  function sum(arr) {
+    return arr.reduce((a, b) => a + b, 0);
+  }
 
-      const activePips = PIP_MAP[value];
-      const delay = animate ? ROLL_DURATION_MS - 80 : 0;
+  /** Average rounded to 1 decimal — returns null for empty array */
+  function average(arr) {
+    if (!arr.length) return null;
+    return Math.round((sum(arr) / arr.length) * 10) / 10;
+  }
 
-      setTimeout(() => {
-        die.querySelectorAll('.pip').forEach(pip => {
-          const slot = pip.dataset.slot;
-          if (activePips.includes(slot)) {
-            pip.classList.add('visible');
-          } else {
-            pip.classList.remove('visible');
-          }
-        });
-      }, delay);
-    }
+  /** Max value in an array — returns null for empty array */
+  function maxOf(arr) {
+    if (!arr.length) return null;
+    return Math.max(...arr);
+  }
 
-    // ============================================================
-    // Kick off the shake animation on a die element
-    // ============================================================
-    function animateDie(dieEl) {
-      // Remove then re-add so it re-triggers even if already rolling
-      dieEl.classList.remove('rolling');
-      // Force reflow — without this the browser merges the remove+add
-      void dieEl.offsetWidth;
-      dieEl.classList.add('rolling');
+  /** Is `v` a valid die face (integer 1–6)? */
+  function isValidFace(v) {
+    return Number.isInteger(v) && v >= 1 && v <= 6;
+  }
 
-      // Strip the class once the animation finishes
-      setTimeout(() => dieEl.classList.remove('rolling'), ROLL_DURATION_MS);
-    }
+  /** Is `n` a valid dice count? */
+  function isValidCount(n) {
+    return Number.isInteger(n) && n >= CONFIG.MIN_DICE && n <= CONFIG.MAX_DICE;
+  }
 
-    // ============================================================
-    // Roll ALL dice at once (the main button)
-    // ============================================================
-    function rollAll() {
-      const btn = document.getElementById('rollBtn');
-      btn.disabled = true;
+  // ============================================================
+  // TOAST — lightweight notification for errors and events
+  // ============================================================
+  let _toastTimer = null;
 
-      const dice = document.querySelectorAll('.die');
+  function showToast(msg) {
+    if (typeof msg !== 'string' || !msg.trim()) return;
 
-      dice.forEach((die, i) => {
-        animateDie(die);
+    const el = DOM.toast();
+    el.textContent = msg;
+    el.classList.add('show');
 
-        // Pick a new random value 1–6 and store it
-        const newValue = randomD6();
-        dieValues[i] = newValue;
-        updateDieFace(i, newValue, true);
-      });
+    // Clear any pending hide-timer so rapid calls don't fight each other
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => el.classList.remove('show'), CONFIG.TOAST_MS);
+  }
 
-      // Re-enable the button once the animation is done
-      setTimeout(() => {
-        btn.disabled = false;
-        updateTotal();
-        addToHistory(sum(dieValues));
-      }, ROLL_DURATION_MS + 50);
-    }
+  // ============================================================
+  // RENDERING — pure DOM functions, no state changes happen here
+  // ============================================================
 
-    // ============================================================
-    // Roll a single die by index (when user clicks one)
-    // ============================================================
-    function rollSingle(index) {
-      const dice = document.querySelectorAll('.die');
-      const die = dice[index];
-      if (!die || die.classList.contains('rolling')) return;
+  /**
+   * Build a fresh die element with its pip grid.
+   * Extracted from renderDice() to keep things readable.
+   */
+  function createDieElement(index) {
+    const die = document.createElement('div');
+    die.className = 'die';
+    die.dataset.index = index;
+    die.setAttribute('role', 'img');
+    die.setAttribute('tabindex', '0');
+    die.setAttribute('aria-label', `Die ${index + 1}`);
 
-      animateDie(die);
-      const newValue = randomD6();
-      dieValues[index] = newValue;
-      updateDieFace(index, newValue, true);
+    die.addEventListener('click', () => rollSingle(index));
 
-      setTimeout(() => {
-        updateTotal();
-        addToHistory(sum(dieValues));
-      }, ROLL_DURATION_MS + 50);
-    }
-
-    // ============================================================
-    // Refresh the big total number below the dice
-    // ============================================================
-    function updateTotal() {
-      const el = document.getElementById('resultValue');
-      const total = sum(dieValues.slice(0, diceCount));
-      const maxPossible = diceCount * 6;
-
-      el.textContent = total;
-      el.classList.add('visible');
-
-      // Gold glow if every die shows a 6
-      if (total === maxPossible) {
-        el.classList.add('jackpot');
-      } else {
-        el.classList.remove('jackpot');
-      }
-    }
-
-    // ============================================================
-    // Change how many dice are on the table
-    // ============================================================
-    function setDiceCount(n) {
-      diceCount = n;
-
-      // Extend or trim the values array to match
-      while (dieValues.length < n) dieValues.push(randomD6());
-      dieValues = dieValues.slice(0, n);
-
-      // Update the picker button states
-      document.querySelectorAll('.picker-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.count) === n);
-      });
-
-      renderDice();
-    }
-
-    // ============================================================
-    // Push a total to the history strip (max 10 items)
-    // ============================================================
-    function addToHistory(total) {
-      const strip = document.getElementById('historyStrip');
-
-      const badge = document.createElement('div');
-      badge.className = 'history-badge';
-      badge.textContent = total;
-
-      // Remove the "latest" highlight from the previous badge
-      const prev = strip.querySelector('.history-badge:last-child');
-      if (prev) prev.style.borderColor = '';
-
-      strip.appendChild(badge);
-
-      // Keep only the last 10
-      while (strip.children.length > 10) {
-        strip.removeChild(strip.firstChild);
-      }
-
-      // Scroll to show the newest one if the strip wraps
-      badge.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    // ============================================================
-    // Tiny helpers
-    // ============================================================
-    function randomD6() {
-      // Math.random() gives [0, 1), multiply by 6 → [0, 6), floor → 0–5, +1 → 1–6
-      return Math.floor(Math.random() * 6) + 1;
-    }
-
-    function sum(arr) {
-      return arr.reduce((a, b) => a + b, 0);
-    }
-
-    // ============================================================
-    // Keyboard shortcut: Space or Enter rolls all dice
-    // ============================================================
-    document.addEventListener('keydown', e => {
-      if (e.code === 'Space' || e.code === 'Enter') {
+    // Also allow keyboard users to activate a focused die
+    die.addEventListener('keydown', e => {
+      if (e.code === 'Enter' || e.code === 'Space') {
         e.preventDefault();
-        rollAll();
+        rollSingle(index);
       }
     });
 
-    // ============================================================
-    // Init — draw one die with a random starting value
-    // ============================================================
-    dieValues[0] = randomD6();
+    // Build the 3×3 pip grid
+    const grid = document.createElement('div');
+    grid.className = 'pip-grid';
+
+    ALL_SLOTS.forEach(slot => {
+      const pip = document.createElement('div');
+      const isCenter = slot === 'mc';
+      pip.className = `pip pip--${slot}${isCenter ? ' pip--red' : ''}`;
+      pip.dataset.slot = slot;
+      grid.appendChild(pip);
+    });
+
+    die.appendChild(grid);
+    return die;
+  }
+
+  /**
+   * Full re-render of the tray.
+   * Called when dice count changes or on reset.
+   */
+  function renderDice() {
+    const tray = DOM.tray();
+    tray.innerHTML = '';
+
+    for (let i = 0; i < state.diceCount; i++) {
+      const el = createDieElement(i);
+      tray.appendChild(el);
+      // Show the stored value with no delay (freshly appeared)
+      applyPips(el, state.values[i], false);
+    }
+
+    refreshResult();
+  }
+
+  /**
+   * Flip the pips on a die to show a given face value.
+   * withDelay=true is used during rolls so pips reveal after the shake settles.
+   *
+   * @param {HTMLElement} dieEl
+   * @param {number}      value      1–6
+   * @param {boolean}     withDelay  wait for roll animation?
+   */
+  function applyPips(dieEl, value, withDelay = false) {
+    if (!isValidFace(value)) {
+      console.error(`applyPips: invalid value "${value}" for die`, dieEl);
+      showToast('Unexpected error: invalid die value.');
+      return;
+    }
+
+    const active = PIP_LAYOUT[value];
+    const delay  = withDelay ? CONFIG.ROLL_MS - 60 : 0;
+
+    setTimeout(() => {
+      dieEl.querySelectorAll('.pip').forEach(pip => {
+        pip.classList.toggle('visible', active.includes(pip.dataset.slot));
+      });
+      dieEl.setAttribute('aria-label', `Die showing ${value}`);
+    }, delay);
+  }
+
+  /** Update the big total number and jackpot state */
+  function refreshResult() {
+    const vals        = state.values.slice(0, state.diceCount);
+    const total       = sum(vals);
+    const maxPossible = state.diceCount * 6;
+    const isJackpot   = total === maxPossible;
+
+    const valueEl = DOM.resultValue();
+    const tagEl   = DOM.resultTag();
+
+    valueEl.textContent = total;
+    valueEl.classList.add('visible');
+    valueEl.classList.toggle('jackpot', isJackpot);
+
+    tagEl.textContent = isJackpot ? '★ Maximum Roll ★' : '';
+    tagEl.classList.toggle('visible', isJackpot);
+  }
+
+  /** Update the three stat counters below the controls */
+  function refreshStats() {
+    DOM.statTotal().textContent = state.rollCount;
+    DOM.statAvg().textContent   = average(state.rollSums) ?? '—';
+    DOM.statBest().textContent  = maxOf(state.rollSums)   ?? '—';
+  }
+
+  /**
+   * Push a new roll total into the history strip.
+   * Trims oldest entries if we exceed MAX_HISTORY.
+   */
+  function pushHistoryBadge(total, isMax) {
+    const strip = DOM.historyStrip();
+
+    // Demote the previously "latest" badge
+    const prev = strip.querySelector('.badge--latest');
+    if (prev) prev.classList.remove('badge--latest');
+
+    const badge = document.createElement('div');
+    badge.className = 'badge badge--latest';
+    badge.textContent = total;
+    badge.setAttribute('role', 'listitem');
+    badge.title = `Roll #${state.rollCount}: ${total}`;
+    if (isMax) badge.classList.add('badge--max');
+
+    strip.appendChild(badge);
+
+    while (strip.children.length > CONFIG.MAX_HISTORY) {
+      strip.removeChild(strip.firstChild);
+    }
+  }
+
+  /** Sync aria-pressed and .active class on picker buttons */
+  function refreshPickerUI() {
+    DOM.pickerBtns().forEach(btn => {
+      const active = parseInt(btn.dataset.count) === state.diceCount;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+  }
+
+  // ============================================================
+  // ROLL LOGIC
+  // ============================================================
+
+  /**
+   * Kick off the roll animation on a single die element and
+   * assign it a new face value in state.
+   *
+   * Everything else (stats, history, re-enabling the button)
+   * is handled by the caller after the animation completes.
+   *
+   * @param {HTMLElement} dieEl
+   * @param {number}      index  which slot in state.values to update
+   */
+  function triggerRoll(dieEl, index) {
+    if (!dieEl) {
+      console.error(`triggerRoll: no element passed for index ${index}`);
+      return;
+    }
+
+    // Re-trigger CSS animation by removing the class first
+    dieEl.classList.remove('rolling');
+    void dieEl.offsetWidth;           // force layout flush
+    dieEl.classList.add('rolling');
+
+    // Decide result now so it's ready when applyPips fires
+    const newValue     = rollD6();
+    state.values[index] = newValue;
+
+    applyPips(dieEl, newValue, true);
+
+    // Clean up the animation class so it can fire again next time
+    setTimeout(() => dieEl.classList.remove('rolling'), CONFIG.ROLL_MS);
+  }
+
+  /** Roll every die currently on the table */
+  function rollAll() {
+    if (state.isRolling) {
+      showToast('Still rolling — wait a moment.');
+      return;
+    }
+
+    const dice = DOM.dice();
+
+    // Sanity check: DOM should always match state.diceCount
+    if (dice.length !== state.diceCount) {
+      console.error('rollAll: DOM/state mismatch — forcing re-render.');
+      renderDice();
+      return;
+    }
+
+    state.isRolling = true;
+    DOM.rollBtn().disabled = true;
+
+    dice.forEach((el, i) => triggerRoll(el, i));
+
+    setTimeout(() => {
+      state.isRolling = false;
+      DOM.rollBtn().disabled = false;
+
+      const vals  = state.values.slice(0, state.diceCount);
+      const total = sum(vals);
+      const isMax = total === state.diceCount * 6;
+
+      state.rollCount++;
+      state.rollSums.push(total);
+
+      refreshResult();
+      refreshStats();
+      pushHistoryBadge(total, isMax);
+
+      if (isMax) showToast('🎲 Maximum roll! All sixes!');
+    }, CONFIG.ROLL_MS + 60);
+  }
+
+  /** Re-roll a single die by its index (0-based) */
+  function rollSingle(index) {
+    if (index < 0 || index >= state.diceCount) {
+      console.error(`rollSingle: index ${index} is out of range.`);
+      return;
+    }
+
+    if (state.isRolling) {
+      showToast('Wait for the current roll to finish.');
+      return;
+    }
+
+    const dieEl = DOM.dice()[index];
+    if (!dieEl) {
+      console.error(`rollSingle: no die element found at index ${index}.`);
+      showToast('Could not find that die. Try refreshing.');
+      return;
+    }
+
+    state.isRolling = true;
+    triggerRoll(dieEl, index);
+
+    setTimeout(() => {
+      state.isRolling = false;
+
+      const vals  = state.values.slice(0, state.diceCount);
+      const total = sum(vals);
+      const isMax = total === state.diceCount * 6;
+
+      state.rollCount++;
+      state.rollSums.push(total);
+
+      refreshResult();
+      refreshStats();
+      pushHistoryBadge(total, isMax);
+    }, CONFIG.ROLL_MS + 60);
+  }
+
+  // ============================================================
+  // DICE COUNT
+  // ============================================================
+
+  /** Switch to N dice — validates input, updates state and DOM */
+  function setDiceCount(n) {
+    if (!isValidCount(n)) {
+      console.error(`setDiceCount: "${n}" is not valid.`);
+      showToast(`Dice count must be between ${CONFIG.MIN_DICE} and ${CONFIG.MAX_DICE}.`);
+      return;
+    }
+
+    if (n === state.diceCount) return; // already set — nothing to do
+
+    state.diceCount = n;
+
+    // Grow the values array if needed (new dice start with a random face)
+    while (state.values.length < n) state.values.push(rollD6());
+
+    refreshPickerUI();
     renderDice();
-  </script>
+  }
+
+  // ============================================================
+  // RESET
+  // ============================================================
+
+  /** Wipe all history and start completely fresh */
+  function resetEverything() {
+    if (state.isRolling) {
+      showToast('Cannot reset while rolling.');
+      return;
+    }
+
+    state.rollCount = 0;
+    state.rollSums  = [];
+    state.values    = Array.from({ length: state.diceCount }, rollD6);
+
+    DOM.historyStrip().innerHTML = '';
+
+    const v = DOM.resultValue();
+    v.classList.remove('visible', 'jackpot');
+    v.textContent = '—';
+
+    const t = DOM.resultTag();
+    t.classList.remove('visible');
+    t.textContent = '';
+
+    refreshStats();
+    renderDice();
+    showToast('Reset — fresh start!');
+  }
+
+  /** Clear just the history strip (stats are preserved) */
+  function clearHistory() {
+    DOM.historyStrip().innerHTML = '';
+  }
+
+  // ============================================================
+  // KEYBOARD SHORTCUTS
+  // ============================================================
+  document.addEventListener('keydown', e => {
+    // Don't interfere when the user is tabbed to a button
+    if (document.activeElement.tagName === 'BUTTON') return;
+
+    switch (e.code) {
+      case 'Space':
+      case 'Enter':
+        e.preventDefault();
+        rollAll();
+        break;
+
+      case 'KeyR':
+        e.preventDefault();
+        resetEverything();
+        break;
+
+      // Number keys re-roll individual dice
+      case 'Digit1': rollSingle(0); break;
+      case 'Digit2': if (state.diceCount >= 2) rollSingle(1); break;
+      case 'Digit3': if (state.diceCount >= 3) rollSingle(2); break;
+    }
+  });
+
+  // ============================================================
+  // GLOBAL ERROR BOUNDARY
+  // Catches anything that slips through and shows a friendly message
+  // instead of leaving the user staring at a silent broken screen.
+  // ============================================================
+  window.addEventListener('error', ev => {
+    console.error('Uncaught error:', ev.error);
+    showToast('Something went wrong. Check the console for details.');
+  });
+
+  window.addEventListener('unhandledrejection', ev => {
+    console.error('Unhandled rejection:', ev.reason);
+    showToast('An async error occurred. Check the console for details.');
+  });
+
+  // ============================================================
+  // INIT — run once when the page loads
+  // ============================================================
+  (function init() {
+    state.values = [rollD6()];
+    renderDice();
+    refreshStats();
+  })();
+</script>
 </body>
 </html>
