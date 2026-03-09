@@ -3,499 +3,571 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DICE — Roll</title>
+  <title>DICE</title>
 
-  <!-- Bebas Neue for bold display headings, JetBrains Mono for numbers/mono text -->
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <!--
+    Font pairing:
+    - Bebas Neue → tall, narrow, punchy — perfect for a sideways title
+    - DM Mono   → clean monospace, great for numbers and labels
+  -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
   <style>
     /* ============================================================
-       Design Tokens — single source of truth for all colours/sizes.
-       Change here, everything updates.
+       TOKENS
        ============================================================ */
     :root {
-      --black:        #080808;
-      --black-2:      #111111;
-      --black-3:      #1a1a1a;
-      --black-4:      #242424;
-      --white:        #f0f0f0;
-      --white-dim:    rgba(240,240,240,0.35);
-      --white-ghost:  rgba(240,240,240,0.08);
+      --bg:          #090909;
+      --surface:     #111111;
+      --surface-2:   #181818;
+      --surface-3:   #222222;
+      --border:      rgba(255,255,255,0.08);
+      --border-2:    rgba(255,255,255,0.14);
 
-      /* Accent — sharp crimson, used sparingly */
-      --red:          #e03030;
-      --red-dim:      rgba(224,48,48,0.18);
-      --red-glow:     rgba(224,48,48,0.45);
+      --white:       #efefef;
+      --dim:         rgba(239,239,239,0.38);
+      --ghost:       rgba(239,239,239,0.06);
 
-      /* Die face */
-      --die-bg:       #f5f5f5;
-      --die-edge:     #c8c8c8;
-      --pip-dark:     #111111;
-      --pip-one:      #e03030;   /* center pip on "1" is always red */
+      --red:         #df2f2f;
+      --red-soft:    rgba(223,47,47,0.16);
+      --red-glow:    rgba(223,47,47,0.5);
 
-      --border:       rgba(240,240,240,0.1);
-      --border-focus: rgba(240,240,240,0.3);
+      --die-face:    #f2f2f0;
+      --die-rim:     #c6c6c4;
+      --pip:         #141414;
+      --pip-red:     #df2f2f;
+
+      /* sidebar width — the rotated title lives here */
+      --sidebar-w:   72px;
 
       --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --roll-ms:   640;
     }
 
     /* ============================================================
-       Reset
+       BASE RESET
        ============================================================ */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
     }
 
     body {
-      background-color: var(--black);
-      /* Subtle noise so it doesn't look like a void */
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      background: var(--bg);
       color: var(--white);
-      font-family: 'JetBrains Mono', monospace;
-      overflow-x: hidden;
+      font-family: 'DM Mono', monospace;
+      /* Grain texture so the black isn't flat */
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.028'/%3E%3C/svg%3E");
+      overflow: hidden; /* no scroll — everything fits the viewport */
     }
 
     /* ============================================================
-       Page container
+       APP SHELL — full viewport grid
+       Columns: [sidebar] [main-content]
+       Rows:    [top bar] [center stage] [history strip]
        ============================================================ */
-    .page {
-      width: 100%;
-      max-width: 680px;
-      padding: 60px 24px 80px;
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-rows: auto 1fr auto;
+      grid-template-areas:
+        "side  topbar"
+        "side  stage"
+        "side  history";
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ============================================================
+       SIDEBAR — rotated title + picker stacked vertically
+       ============================================================ */
+    .sidebar {
+      grid-area: side;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 48px;
+      justify-content: space-between;
+      padding: 28px 0 24px;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      /* subtle inner right shadow to separate from main */
+      box-shadow: inset -1px 0 0 var(--border);
     }
 
-    /* ============================================================
-       Header
-       ============================================================ */
-    .header {
-      text-align: center;
-      width: 100%;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 32px;
-    }
-
-    .header__eyebrow {
-      font-size: 0.65rem;
-      letter-spacing: 0.5em;
-      text-transform: uppercase;
-      color: var(--white-dim);
-      margin-bottom: 10px;
-    }
-
-    .header__title {
+    /* The big rotated "DICE" text */
+    .sidebar__title {
       font-family: 'Bebas Neue', sans-serif;
-      font-size: clamp(3.5rem, 12vw, 7rem);
-      letter-spacing: 0.12em;
+      font-size: 3rem;
+      letter-spacing: 0.15em;
+      color: var(--white);
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      transform: rotate(180deg); /* flip so it reads bottom-to-top */
       line-height: 1;
-      /* Red first letter only, using background-clip */
-      background: linear-gradient(90deg, var(--red) 0%, var(--red) 1ch, var(--white) 1ch);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      user-select: none;
     }
 
-    .header__sub {
-      margin-top: 8px;
-      font-size: 0.7rem;
+    /* First letter gets the red accent */
+    .sidebar__title span { color: var(--red); }
+
+    /* Version tag at the bottom of the sidebar */
+    .sidebar__version {
+      font-size: 0.55rem;
+      letter-spacing: 0.2em;
+      color: var(--dim);
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+
+    /* Dice count picker — vertical column of three buttons */
+    .sidebar__picker {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .sidebar__picker-label {
+      font-size: 0.52rem;
       letter-spacing: 0.25em;
       text-transform: uppercase;
-      color: var(--white-dim);
+      color: var(--dim);
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      margin-bottom: 6px;
     }
 
+    .picker-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--dim);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.1s;
+    }
+
+    .picker-btn:hover {
+      background: var(--ghost);
+      color: var(--white);
+      border-color: var(--border-2);
+    }
+
+    .picker-btn.active {
+      background: var(--red);
+      color: #fff;
+      border-color: var(--red);
+    }
+
+    .picker-btn:active { transform: scale(0.88); }
+
     /* ============================================================
-       Dice count picker
+       TOP BAR — stats row across the top
        ============================================================ */
-    .picker {
+    .topbar {
+      grid-area: topbar;
       display: flex;
       align-items: center;
-      background: var(--black-3);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 4px;
-      gap: 0;
+      gap: 1px;
+      padding: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
     }
 
-    .picker__label {
-      font-size: 0.65rem;
+    .stat-cell {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 8px;
+      border-right: 1px solid var(--border);
+      transition: background 0.18s;
+    }
+
+    .stat-cell:last-child { border-right: none; }
+    .stat-cell:hover { background: var(--surface-2); }
+
+    .stat-cell__value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      line-height: 1;
+      color: var(--white);
+    }
+
+    .stat-cell__label {
+      font-size: 0.52rem;
       letter-spacing: 0.3em;
       text-transform: uppercase;
-      color: var(--white-dim);
-      padding: 0 14px 0 10px;
-      border-right: 1px solid var(--border);
-      margin-right: 4px;
-      white-space: nowrap;
+      color: var(--dim);
+      margin-top: 3px;
     }
-
-    .picker__btn {
-      width: 44px;
-      height: 36px;
-      background: transparent;
-      border: none;
-      border-radius: 5px;
-      color: var(--white-dim);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.18s, color 0.18s, transform 0.1s;
-    }
-
-    .picker__btn:hover { background: var(--white-ghost); color: var(--white); }
-    .picker__btn.active { background: var(--red); color: #fff; }
-    .picker__btn.active:hover { background: var(--red); }
-    .picker__btn:active { transform: scale(0.9); }
 
     /* ============================================================
-       Tray
+       STAGE — the main center area where dice live
        ============================================================ */
+    .stage {
+      grid-area: stage;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 36px;
+      padding: 24px 32px;
+      position: relative;
+    }
+
+    /* Subtle radial glow behind the dice */
+    .stage::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 55% at 50% 48%, rgba(223,47,47,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Total display ── */
+    .total-display {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .total-display__label {
+      font-size: 0.6rem;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .total-display__value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.5rem, 8vw, 5.5rem);
+      line-height: 1;
+      color: var(--white);
+      opacity: 0;
+      transform: scale(0.7);
+      transition: opacity 0.3s ease, transform 0.35s var(--ease-back);
+    }
+
+    .total-display__value.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .total-display__value.jackpot {
+      color: var(--red);
+      animation: jackpot-pulse 0.85s ease-in-out infinite alternate;
+    }
+
+    @keyframes jackpot-pulse {
+      from { text-shadow: 0 0 24px var(--red-glow); }
+      to   { text-shadow: 0 0 64px var(--red-glow), 0 0 16px #ff5555; }
+    }
+
+    .total-display__tag {
+      font-size: 0.58rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--red);
+      min-height: 1em;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .total-display__tag.visible { opacity: 1; }
+
+    /* ── Tray — the dice row ── */
     .tray {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 28px;
-      width: 100%;
-      min-height: 160px;
+      gap: 24px;
+      /* min-height prevents layout jump when switching dice count */
+      min-height: 150px;
     }
 
-    /* ============================================================
-       Die
-       ============================================================ */
+    /* ── Individual die ── */
     .die {
-      width: 130px;
-      height: 130px;
-      background: var(--die-bg);
-      border-radius: 22px;
-      position: relative;
+      width: 120px;
+      height: 120px;
+      background: var(--die-face);
+      border-radius: 20px;
       cursor: pointer;
       user-select: none;
+      position: relative;
 
+      /* layered shadow to simulate 3D thickness */
       box-shadow:
-        3px 3px 0   var(--die-edge),
-        6px 6px 0   #b0b0b0,
-        0  16px 40px rgba(0,0,0,0.75),
-        inset 0 1px 0 rgba(255,255,255,0.9);
+        3px  3px  0   var(--die-rim),
+        6px  6px  0   #aaa,
+        0   18px 40px rgba(0,0,0,0.8),
+        inset 0 1px 0 rgba(255,255,255,0.85);
 
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      animation: dieIn 0.4s var(--ease-back) both;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      animation: die-enter 0.38s var(--ease-back) both;
     }
 
-    .die:nth-child(2) { animation-delay: 0.05s; }
-    .die:nth-child(3) { animation-delay: 0.10s; }
+    .die:nth-child(2) { animation-delay: 0.06s; }
+    .die:nth-child(3) { animation-delay: 0.12s; }
 
-    @keyframes dieIn {
-      from { opacity: 0; transform: scale(0.7) translateY(-10px); }
-      to   { opacity: 1; transform: scale(1)   translateY(0); }
+    @keyframes die-enter {
+      from { opacity: 0; transform: scale(0.65) translateY(-14px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0); }
     }
 
     .die:hover {
-      transform: translateY(-6px) rotate(-1.5deg);
+      transform: translateY(-7px) rotate(-2deg);
       box-shadow:
-        3px 3px 0   var(--die-edge),
-        6px 6px 0   #b0b0b0,
-        0  28px 55px rgba(0,0,0,0.8),
-        inset 0 1px 0 rgba(255,255,255,0.9);
+        3px  3px  0   var(--die-rim),
+        6px  6px  0   #aaa,
+        0   30px 55px rgba(0,0,0,0.85),
+        inset 0 1px 0 rgba(255,255,255,0.85);
     }
 
-    /* Shake animation — erratic then snaps cleanly to 0 at 100% */
-    @keyframes roll {
-      0%   { transform: rotate(0deg)   scale(1);    }
-      12%  { transform: rotate(-25deg) scale(0.93); }
-      28%  { transform: rotate(20deg)  scale(1.07); }
-      44%  { transform: rotate(-15deg) scale(0.96); }
-      60%  { transform: rotate(11deg)  scale(1.04); }
-      74%  { transform: rotate(-6deg)  scale(0.98); }
-      87%  { transform: rotate(3deg)   scale(1.02); }
+    @keyframes roll-shake {
+      0%   { transform: rotate(0deg)   scale(1); }
+      10%  { transform: rotate(-24deg) scale(0.92); }
+      26%  { transform: rotate(19deg)  scale(1.08); }
+      42%  { transform: rotate(-14deg) scale(0.95); }
+      58%  { transform: rotate(9deg)   scale(1.04); }
+      72%  { transform: rotate(-5deg)  scale(0.98); }
+      86%  { transform: rotate(2deg)   scale(1.01); }
       100% { transform: rotate(0deg)   scale(1); }
     }
 
     .die.rolling {
-      animation: roll 650ms ease;
+      animation: roll-shake calc(var(--roll-ms) * 1ms) ease;
       cursor: not-allowed;
       pointer-events: none;
     }
 
-    /* Blur pips while spinning so the value isn't readable mid-roll */
+    /* Blur pips while the die is mid-spin */
     .die.rolling .pip-grid {
-      filter: blur(3px);
-      opacity: 0.2;
+      filter: blur(4px);
+      opacity: 0.15;
     }
 
-    /* ============================================================
-       Pip grid — 3×3 named slots
-       ============================================================ */
+    /* ── Pip grid — 3×3 ── */
     .pip-grid {
       width: 100%;
       height: 100%;
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows:    repeat(3, 1fr);
-      padding: 20px;
+      padding: 17px;
       gap: 5px;
       transition: filter 0.15s, opacity 0.15s;
     }
 
     .pip {
       border-radius: 50%;
-      background: var(--pip-dark);
+      background: var(--pip);
       transform: scale(0);
-      transition: transform 0.22s var(--ease-back);
+      transition: transform 0.2s var(--ease-back);
     }
 
-    .pip.pip--red  { background: var(--pip-one); } /* only for center on face 1 */
-    .pip.visible   { transform: scale(1); }
+    .pip.pip--red   { background: var(--pip-red); }
+    .pip.visible    { transform: scale(1); }
 
-    /* Named grid positions */
-    .pip--tl { grid-column: 1; grid-row: 1; }
-    .pip--tr { grid-column: 3; grid-row: 1; }
-    .pip--ml { grid-column: 1; grid-row: 2; }
-    .pip--mc { grid-column: 2; grid-row: 2; }
-    .pip--mr { grid-column: 3; grid-row: 2; }
-    .pip--bl { grid-column: 1; grid-row: 3; }
-    .pip--br { grid-column: 3; grid-row: 3; }
+    /* Grid positions */
+    .p-tl { grid-column: 1; grid-row: 1; }
+    .p-tr { grid-column: 3; grid-row: 1; }
+    .p-ml { grid-column: 1; grid-row: 2; }
+    .p-mc { grid-column: 2; grid-row: 2; }
+    .p-mr { grid-column: 3; grid-row: 2; }
+    .p-bl { grid-column: 1; grid-row: 3; }
+    .p-br { grid-column: 3; grid-row: 3; }
 
-    /* ============================================================
-       Result display
-       ============================================================ */
-    .result {
-      text-align: center;
-      min-height: 90px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-
-    .result__label {
-      font-size: 0.65rem;
-      letter-spacing: 0.4em;
-      text-transform: uppercase;
-      color: var(--white-dim);
-    }
-
-    .result__value {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 5rem;
-      line-height: 1;
-      color: var(--white);
-      opacity: 0;
-      transform: scale(0.75);
-      transition: opacity 0.3s ease, transform 0.35s var(--ease-back);
-    }
-
-    .result__value.visible { opacity: 1; transform: scale(1); }
-
-    .result__value.jackpot {
-      color: var(--red);
-      text-shadow: 0 0 60px var(--red-glow);
-      animation: jackpot 0.9s ease-in-out infinite alternate;
-    }
-
-    @keyframes jackpot {
-      from { text-shadow: 0 0 30px var(--red-glow); }
-      to   { text-shadow: 0 0 80px var(--red-glow), 0 0 20px #ff6666; }
-    }
-
-    .result__tag {
-      font-size: 0.6rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: var(--red);
-      opacity: 0;
-      min-height: 1em;
-      transition: opacity 0.3s ease;
-    }
-
-    .result__tag.visible { opacity: 1; }
-
-    /* ============================================================
-       Controls
-       ============================================================ */
+    /* ── Controls row ── */
     .controls {
       display: flex;
-      gap: 12px;
       align-items: center;
+      gap: 10px;
     }
 
     .btn-roll {
       font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.4rem;
-      letter-spacing: 0.2em;
+      font-size: 1.3rem;
+      letter-spacing: 0.18em;
       color: #fff;
       background: var(--red);
       border: none;
       border-radius: 8px;
-      padding: 14px 54px;
+      padding: 13px 52px;
       cursor: pointer;
       position: relative;
       overflow: hidden;
       transition: transform 0.12s, box-shadow 0.12s;
-      box-shadow: 0 4px 24px var(--red-dim), inset 0 1px 0 rgba(255,255,255,0.1);
+      box-shadow: 0 4px 22px var(--red-soft), inset 0 1px 0 rgba(255,255,255,0.12);
     }
 
-    /* Light sweep on hover */
+    /* Sheen sweep on hover */
     .btn-roll::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.18) 50%, transparent 65%);
+      background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
       transform: translateX(-110%);
-      transition: transform 0.45s ease;
+      transition: transform 0.4s ease;
     }
 
     .btn-roll:hover::after  { transform: translateX(110%); }
-    .btn-roll:hover         { transform: translateY(-3px); box-shadow: 0 10px 36px var(--red-dim); }
-    .btn-roll:active        { transform: translateY(1px);  box-shadow: 0 2px 10px var(--red-dim); }
-    .btn-roll:disabled      { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-roll:hover         { transform: translateY(-3px); box-shadow: 0 10px 32px var(--red-soft); }
+    .btn-roll:active        { transform: translateY(1px);  box-shadow: 0 2px 8px var(--red-soft); }
+    .btn-roll:disabled      { opacity: 0.4; cursor: not-allowed; transform: none; }
 
     .btn-reset {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.2em;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--white-dim);
+      color: var(--dim);
       background: transparent;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 14px 22px;
+      padding: 13px 20px;
       cursor: pointer;
       transition: color 0.18s, border-color 0.18s, transform 0.1s;
     }
 
-    .btn-reset:hover  { color: var(--white); border-color: var(--border-focus); }
-    .btn-reset:active { transform: scale(0.95); }
+    .btn-reset:hover  { color: var(--white); border-color: var(--border-2); }
+    .btn-reset:active { transform: scale(0.94); }
 
     /* ============================================================
-       Stats bar
+       HISTORY — pinned at the bottom of the page
        ============================================================ */
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      width: 100%;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
+    .history {
+      grid-area: history;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 14px 28px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-
-    .stat {
-      background: var(--black-2);
-      padding: 16px 12px;
-      text-align: center;
-      transition: background 0.2s;
-    }
-
-    .stat:hover { background: var(--black-3); }
-
-    .stat__value {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.8rem;
-      line-height: 1;
-      color: var(--white);
-    }
-
-    .stat__label {
-      font-size: 0.58rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: var(--white-dim);
-      margin-top: 4px;
-    }
-
-    /* ============================================================
-       History strip
-       ============================================================ */
-    .history { width: 100%; }
 
     .history__header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 12px;
     }
 
-    .history__title {
-      font-size: 0.65rem;
-      letter-spacing: 0.35em;
+    .history__label {
+      font-size: 0.55rem;
+      letter-spacing: 0.38em;
       text-transform: uppercase;
-      color: var(--white-dim);
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* green pulse dot = live */
+    .history__label::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #3ddc84;
+      animation: live-pulse 1.6s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes live-pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.3; }
     }
 
     .history__clear {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.6rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.55rem;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--white-dim);
+      color: var(--dim);
       background: none;
       border: none;
       cursor: pointer;
-      transition: color 0.18s;
+      padding: 0;
+      transition: color 0.15s;
     }
 
     .history__clear:hover { color: var(--red); }
 
+    /* Horizontal scrolling row of badges */
     .history__strip {
       display: flex;
       gap: 6px;
-      flex-wrap: wrap;
+      overflow-x: auto;
+      padding-bottom: 2px; /* room for scrollbar on Windows */
+      /* hide scrollbar visually, keep it functional */
+      scrollbar-width: none;
     }
 
+    .history__strip::-webkit-scrollbar { display: none; }
+
     .badge {
-      min-width: 36px;
-      height: 36px;
+      flex-shrink: 0;
+      min-width: 34px;
+      height: 32px;
       padding: 0 10px;
       border-radius: 6px;
       border: 1px solid var(--border);
-      background: var(--black-3);
+      background: var(--surface-3);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--white-dim);
-      animation: badgeIn 0.3s var(--ease-back) both;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--dim);
+      animation: badge-in 0.28s var(--ease-back) both;
+      white-space: nowrap;
     }
 
-    @keyframes badgeIn {
-      from { opacity: 0; transform: scale(0.5); }
-      to   { opacity: 1; transform: scale(1); }
+    @keyframes badge-in {
+      from { opacity: 0; transform: scale(0.5) translateY(6px); }
+      to   { opacity: 1; transform: scale(1)   translateY(0); }
     }
 
-    .badge.badge--latest { border-color: var(--red); color: var(--red); background: var(--red-dim); }
-    .badge.badge--max    { border-color: rgba(224,48,48,0.6); color: var(--white); }
+    .badge.badge--latest {
+      border-color: var(--red);
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .badge.badge--max {
+      border-color: rgba(223,47,47,0.5);
+      color: var(--white);
+    }
 
     /* ============================================================
-       Toast — error and event notifications
+       TOAST — bottom-center error/event notifications
        ============================================================ */
     .toast {
       position: fixed;
-      bottom: 32px;
-      left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: var(--black-4);
-      border: 1px solid var(--border-focus);
+      bottom: 88px;    /* sits above the history strip */
+      left: calc(var(--sidebar-w) + 50%);
+      transform: translateX(-50%) translateY(12px);
+      background: var(--surface-3);
+      border: 1px solid var(--border-2);
       border-left: 3px solid var(--red);
       border-radius: 8px;
-      padding: 12px 20px;
-      font-size: 0.75rem;
-      letter-spacing: 0.05em;
+      padding: 11px 18px;
+      font-size: 0.72rem;
       color: var(--white);
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.25s ease, transform 0.25s ease;
-      z-index: 100;
+      z-index: 200;
       white-space: nowrap;
     }
 
@@ -505,153 +577,193 @@
     }
 
     /* ============================================================
-       Keyboard hints
+       KEYBOARD HINT — floats bottom-right of the stage
        ============================================================ */
-    .hint {
-      font-size: 0.6rem;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: var(--white-dim);
+    .kbd-hint {
+      position: absolute;
+      bottom: 18px;
+      right: 22px;
       display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
+      gap: 12px;
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--dim);
     }
 
-    .hint__key { display: inline-flex; align-items: center; gap: 6px; }
+    .kbd-hint span { display: flex; align-items: center; gap: 5px; }
 
-    .hint__key kbd {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
-      background: var(--black-3);
-      border: 1px solid var(--border-focus);
+    kbd {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      background: var(--surface-3);
+      border: 1px solid var(--border-2);
       border-radius: 4px;
-      padding: 2px 6px;
+      padding: 1px 5px;
       color: var(--white);
     }
 
     /* ============================================================
-       Footer
+       RESPONSIVE — collapse sidebar on small screens
        ============================================================ */
-    .footer {
-      font-size: 0.6rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: rgba(240,240,240,0.15);
-      text-align: center;
-      padding-top: 16px;
-      border-top: 1px solid var(--border);
-      width: 100%;
+    @media (max-width: 560px) {
+      :root { --sidebar-w: 0px; }
+
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr auto;
+        grid-template-areas:
+          "topbar"
+          "mobile-header"
+          "stage"
+          "history";
+      }
+
+      .sidebar { display: none; }
+
+      /* Show a compact top header instead */
+      .mobile-header {
+        grid-area: mobile-header;
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      .die { width: 96px; height: 96px; border-radius: 16px; }
+      .pip-grid { padding: 13px; gap: 4px; }
+      .tray { gap: 14px; }
     }
 
-    /* ============================================================
-       Responsive
-       ============================================================ */
-    @media (max-width: 520px) {
-      .die { width: 100px; height: 100px; border-radius: 17px; }
-      .pip-grid { padding: 14px; gap: 4px; }
-      .tray { gap: 16px; }
-      .result__value { font-size: 4rem; }
-      .btn-roll { padding: 12px 40px; }
-    }
-
-    @media (max-width: 360px) {
-      .die { width: 82px; height: 82px; }
-      .controls { flex-direction: column; width: 100%; }
-      .btn-roll, .btn-reset { width: 100%; text-align: center; }
-    }
+    /* Hidden on desktop */
+    .mobile-header { display: none; }
   </style>
 </head>
 <body>
-<div class="page">
 
-  <!-- Header -->
-  <header class="header">
-    <p class="header__eyebrow">Casino Grade</p>
-    <h1 class="header__title">DICE</h1>
-    <p class="header__sub">Roll · Risk · Repeat</p>
-  </header>
+<div class="app">
 
-  <!-- Dice count picker -->
-  <div class="picker" role="group" aria-label="Number of dice">
-    <span class="picker__label">Dice</span>
-    <button class="picker__btn active" data-count="1" aria-pressed="true"  onclick="setDiceCount(1)">1</button>
-    <button class="picker__btn"        data-count="2" aria-pressed="false" onclick="setDiceCount(2)">2</button>
-    <button class="picker__btn"        data-count="3" aria-pressed="false" onclick="setDiceCount(3)">3</button>
-  </div>
-
-  <!-- Dice tray -->
-  <div class="tray" id="tray" role="group" aria-label="Dice"></div>
-
-  <!-- Total result -->
-  <div class="result" aria-live="polite">
-    <div class="result__label">Total</div>
-    <div class="result__value" id="resultValue">—</div>
-    <div class="result__tag"   id="resultTag"></div>
-  </div>
-
-  <!-- Roll / Reset -->
-  <div class="controls">
-    <button class="btn-roll"  id="rollBtn"  onclick="rollAll()">Roll</button>
-    <button class="btn-reset" id="resetBtn" onclick="resetEverything()">Reset</button>
-  </div>
-
-  <!-- Stats -->
-  <div class="stats" role="region" aria-label="Statistics">
-    <div class="stat">
-      <div class="stat__value" id="statTotal">0</div>
-      <div class="stat__label">Rolls</div>
+  <!-- ===================================================
+       SIDEBAR — rotated title, dice picker, version tag
+       =================================================== -->
+  <aside class="sidebar">
+    <div class="sidebar__title">
+      <span>D</span>ICE
     </div>
-    <div class="stat">
-      <div class="stat__value" id="statAvg">—</div>
-      <div class="stat__label">Average</div>
+
+    <div class="sidebar__picker">
+      <span class="sidebar__picker-label">Dice</span>
+      <button class="picker-btn active" data-count="1" aria-pressed="true"  onclick="setDiceCount(1)">1</button>
+      <button class="picker-btn"        data-count="2" aria-pressed="false" onclick="setDiceCount(2)">2</button>
+      <button class="picker-btn"        data-count="3" aria-pressed="false" onclick="setDiceCount(3)">3</button>
     </div>
-    <div class="stat">
-      <div class="stat__value" id="statBest">—</div>
-      <div class="stat__label">Best</div>
+
+    <span class="sidebar__version">v2.0</span>
+  </aside>
+
+  <!-- ===================================================
+       MOBILE HEADER (only visible below 560px)
+       =================================================== -->
+  <div class="mobile-header">
+    <span style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:0.12em;">
+      <span style="color:var(--red)">D</span>ICE
+    </span>
+    <div style="display:flex;gap:6px;">
+      <button class="picker-btn active" data-count="1" onclick="setDiceCount(1)">1</button>
+      <button class="picker-btn"        data-count="2" onclick="setDiceCount(2)">2</button>
+      <button class="picker-btn"        data-count="3" onclick="setDiceCount(3)">3</button>
     </div>
   </div>
 
-  <!-- History -->
-  <div class="history">
+  <!-- ===================================================
+       TOP BAR — stats
+       =================================================== -->
+  <div class="topbar" role="region" aria-label="Statistics">
+    <div class="stat-cell">
+      <div class="stat-cell__value" id="statTotal">0</div>
+      <div class="stat-cell__label">Rolls</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell__value" id="statAvg">—</div>
+      <div class="stat-cell__label">Average</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell__value" id="statBest">—</div>
+      <div class="stat-cell__label">Best</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell__value" id="statLow">—</div>
+      <div class="stat-cell__label">Worst</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell__value" id="statStreak">0</div>
+      <div class="stat-cell__label">Max streak</div>
+    </div>
+  </div>
+
+  <!-- ===================================================
+       STAGE — center: total number, dice, roll button
+       =================================================== -->
+  <main class="stage" aria-label="Dice stage">
+
+    <!-- Total -->
+    <div class="total-display" aria-live="polite">
+      <div class="total-display__label">Total</div>
+      <div class="total-display__value" id="totalValue">—</div>
+      <div class="total-display__tag"   id="totalTag"></div>
+    </div>
+
+    <!-- Dice -->
+    <div class="tray" id="tray" role="group" aria-label="Dice"></div>
+
+    <!-- Buttons -->
+    <div class="controls">
+      <button class="btn-roll"  id="rollBtn"  onclick="rollAll()">Roll</button>
+      <button class="btn-reset" id="resetBtn" onclick="resetEverything()">Reset</button>
+    </div>
+
+    <!-- Keyboard shortcut hints (bottom-right of stage) -->
+    <div class="kbd-hint" aria-hidden="true">
+      <span><kbd>Space</kbd> Roll</span>
+      <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Solo</span>
+      <span><kbd>R</kbd> Reset</span>
+    </div>
+
+  </main>
+
+  <!-- ===================================================
+       HISTORY — pinned to the bottom
+       =================================================== -->
+  <footer class="history" role="region" aria-label="Roll history">
     <div class="history__header">
-      <span class="history__title">Recent rolls</span>
+      <span class="history__label">Past rolls</span>
       <button class="history__clear" onclick="clearHistory()">Clear</button>
     </div>
     <div class="history__strip" id="historyStrip" role="list"></div>
-  </div>
-
-  <!-- Keyboard hints -->
-  <div class="hint" aria-label="Keyboard shortcuts">
-    <span class="hint__key"><kbd>Space</kbd> Roll all</span>
-    <span class="hint__key"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> Re-roll die</span>
-    <span class="hint__key"><kbd>R</kbd> Reset</span>
-  </div>
-
-  <footer class="footer">Click any die to re-roll it individually</footer>
+  </footer>
 
 </div>
 
-<!-- Toast notification for errors and events -->
+<!-- Toast notification -->
 <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
 
 <script>
   // ============================================================
-  // CONFIG — one place to change behavioural constants.
-  // Frozen so nothing can mutate it accidentally.
+  // CONFIG
   // ============================================================
   const CONFIG = Object.freeze({
-    ROLL_MS:        650,   // must match the CSS animation duration above
-    MAX_HISTORY:    20,    // how many badges to keep before trimming
-    MAX_DICE:       3,
-    MIN_DICE:       1,
-    TOAST_MS:       2800,  // how long the toast stays on screen
+    ROLL_MS:      640,
+    MAX_HISTORY:  40,
+    MAX_DICE:     3,
+    MIN_DICE:     1,
+    TOAST_MS:     2600,
   });
 
   // ============================================================
-  // PIP LAYOUT TABLE
-  // Maps face value → which of the 7 grid slots are active.
-  // Slot names correspond to CSS class suffixes (tl, tr, ml…).
+  // PIP LAYOUT — which slots are active per face value (1–6)
   // ============================================================
   const PIP_LAYOUT = Object.freeze({
     1: ['mc'],
@@ -662,101 +774,78 @@
     6: ['tl', 'tr', 'ml', 'mr', 'bl', 'br'],
   });
 
-  // All possible pip positions in the 3×3 grid (excluding corners)
   const ALL_SLOTS = Object.freeze(['tl', 'tr', 'ml', 'mc', 'mr', 'bl', 'br']);
 
   // ============================================================
-  // APPLICATION STATE
-  // All mutation goes through dedicated functions — never inline.
+  // STATE
   // ============================================================
   const state = {
-    diceCount: 1,     // how many dice are on the table right now
-    values:    [1],   // current face value for each die (index matches DOM order)
-    rollCount: 0,     // total rolls ever (counts individual die rolls too)
-    rollSums:  [],    // history of totals, used for average and best
-    isRolling: false, // guard flag — prevents overlapping animations
+    diceCount:    1,
+    values:       [1],
+    rollCount:    0,
+    rollSums:     [],
+    streakCount:  0,      // current streak of max rolls
+    maxStreak:    0,      // longest streak ever
+    isRolling:    false,
   };
 
   // ============================================================
-  // DOM REFS
-  // Functions instead of cached vars so they always hit the live DOM.
-  // The overhead is negligible and avoids stale-reference bugs.
+  // DOM — functions so references are always fresh
   // ============================================================
   const DOM = {
     tray:         () => document.getElementById('tray'),
     rollBtn:      () => document.getElementById('rollBtn'),
-    resultValue:  () => document.getElementById('resultValue'),
-    resultTag:    () => document.getElementById('resultTag'),
+    totalValue:   () => document.getElementById('totalValue'),
+    totalTag:     () => document.getElementById('totalTag'),
     statTotal:    () => document.getElementById('statTotal'),
     statAvg:      () => document.getElementById('statAvg'),
     statBest:     () => document.getElementById('statBest'),
+    statLow:      () => document.getElementById('statLow'),
+    statStreak:   () => document.getElementById('statStreak'),
     historyStrip: () => document.getElementById('historyStrip'),
     toast:        () => document.getElementById('toast'),
     dice:         () => document.querySelectorAll('.die'),
-    pickerBtns:   () => document.querySelectorAll('.picker__btn'),
+    pickerBtns:   () => document.querySelectorAll('.picker-btn'),
   };
 
   // ============================================================
   // UTILITIES
   // ============================================================
 
-  /** Returns a random integer from 1 to 6 inclusive */
   function rollD6() {
     return Math.floor(Math.random() * 6) + 1;
   }
 
-  /** Sum an array of numbers */
-  function sum(arr) {
-    return arr.reduce((a, b) => a + b, 0);
-  }
+  function sum(arr)     { return arr.reduce((a, b) => a + b, 0); }
+  function maxOf(arr)   { return arr.length ? Math.max(...arr) : null; }
+  function minOf(arr)   { return arr.length ? Math.min(...arr) : null; }
 
-  /** Average rounded to 1 decimal — returns null for empty array */
-  function average(arr) {
+  function avg(arr) {
     if (!arr.length) return null;
     return Math.round((sum(arr) / arr.length) * 10) / 10;
   }
 
-  /** Max value in an array — returns null for empty array */
-  function maxOf(arr) {
-    if (!arr.length) return null;
-    return Math.max(...arr);
-  }
-
-  /** Is `v` a valid die face (integer 1–6)? */
-  function isValidFace(v) {
-    return Number.isInteger(v) && v >= 1 && v <= 6;
-  }
-
-  /** Is `n` a valid dice count? */
-  function isValidCount(n) {
-    return Number.isInteger(n) && n >= CONFIG.MIN_DICE && n <= CONFIG.MAX_DICE;
-  }
+  function isValidFace(v)  { return Number.isInteger(v) && v >= 1 && v <= 6; }
+  function isValidCount(n) { return Number.isInteger(n) && n >= CONFIG.MIN_DICE && n <= CONFIG.MAX_DICE; }
 
   // ============================================================
-  // TOAST — lightweight notification for errors and events
+  // TOAST
   // ============================================================
   let _toastTimer = null;
 
   function showToast(msg) {
     if (typeof msg !== 'string' || !msg.trim()) return;
-
     const el = DOM.toast();
     el.textContent = msg;
     el.classList.add('show');
-
-    // Clear any pending hide-timer so rapid calls don't fight each other
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => el.classList.remove('show'), CONFIG.TOAST_MS);
   }
 
   // ============================================================
-  // RENDERING — pure DOM functions, no state changes happen here
+  // RENDERING
   // ============================================================
 
-  /**
-   * Build a fresh die element with its pip grid.
-   * Extracted from renderDice() to keep things readable.
-   */
   function createDieElement(index) {
     const die = document.createElement('div');
     die.className = 'die';
@@ -766,23 +855,16 @@
     die.setAttribute('aria-label', `Die ${index + 1}`);
 
     die.addEventListener('click', () => rollSingle(index));
-
-    // Also allow keyboard users to activate a focused die
     die.addEventListener('keydown', e => {
-      if (e.code === 'Enter' || e.code === 'Space') {
-        e.preventDefault();
-        rollSingle(index);
-      }
+      if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); rollSingle(index); }
     });
 
-    // Build the 3×3 pip grid
     const grid = document.createElement('div');
     grid.className = 'pip-grid';
 
     ALL_SLOTS.forEach(slot => {
       const pip = document.createElement('div');
-      const isCenter = slot === 'mc';
-      pip.className = `pip pip--${slot}${isCenter ? ' pip--red' : ''}`;
+      pip.className = `pip p-${slot}${slot === 'mc' ? ' pip--red' : ''}`;
       pip.dataset.slot = slot;
       grid.appendChild(pip);
     });
@@ -791,10 +873,6 @@
     return die;
   }
 
-  /**
-   * Full re-render of the tray.
-   * Called when dice count changes or on reset.
-   */
   function renderDice() {
     const tray = DOM.tray();
     tray.innerHTML = '';
@@ -802,7 +880,6 @@
     for (let i = 0; i < state.diceCount; i++) {
       const el = createDieElement(i);
       tray.appendChild(el);
-      // Show the stored value with no delay (freshly appeared)
       applyPips(el, state.values[i], false);
     }
 
@@ -810,22 +887,18 @@
   }
 
   /**
-   * Flip the pips on a die to show a given face value.
-   * withDelay=true is used during rolls so pips reveal after the shake settles.
-   *
-   * @param {HTMLElement} dieEl
-   * @param {number}      value      1–6
-   * @param {boolean}     withDelay  wait for roll animation?
+   * Set the pip pattern on a die.
+   * withDelay = true waits until the roll animation settles before revealing.
    */
   function applyPips(dieEl, value, withDelay = false) {
     if (!isValidFace(value)) {
-      console.error(`applyPips: invalid value "${value}" for die`, dieEl);
-      showToast('Unexpected error: invalid die value.');
+      console.error('applyPips: bad value', value);
+      showToast('Unexpected error: bad die value.');
       return;
     }
 
     const active = PIP_LAYOUT[value];
-    const delay  = withDelay ? CONFIG.ROLL_MS - 60 : 0;
+    const delay  = withDelay ? CONFIG.ROLL_MS - 55 : 0;
 
     setTimeout(() => {
       dieEl.querySelectorAll('.pip').forEach(pip => {
@@ -835,39 +908,34 @@
     }, delay);
   }
 
-  /** Update the big total number and jackpot state */
   function refreshResult() {
-    const vals        = state.values.slice(0, state.diceCount);
-    const total       = sum(vals);
-    const maxPossible = state.diceCount * 6;
-    const isJackpot   = total === maxPossible;
+    const vals  = state.values.slice(0, state.diceCount);
+    const total = sum(vals);
+    const isMax = total === state.diceCount * 6;
 
-    const valueEl = DOM.resultValue();
-    const tagEl   = DOM.resultTag();
+    const valEl = DOM.totalValue();
+    const tagEl = DOM.totalTag();
 
-    valueEl.textContent = total;
-    valueEl.classList.add('visible');
-    valueEl.classList.toggle('jackpot', isJackpot);
+    valEl.textContent = total;
+    valEl.classList.add('visible');
+    valEl.classList.toggle('jackpot', isMax);
 
-    tagEl.textContent = isJackpot ? '★ Maximum Roll ★' : '';
-    tagEl.classList.toggle('visible', isJackpot);
+    tagEl.textContent = isMax ? '★  Maximum Roll  ★' : '';
+    tagEl.classList.toggle('visible', isMax);
   }
 
-  /** Update the three stat counters below the controls */
   function refreshStats() {
-    DOM.statTotal().textContent = state.rollCount;
-    DOM.statAvg().textContent   = average(state.rollSums) ?? '—';
-    DOM.statBest().textContent  = maxOf(state.rollSums)   ?? '—';
+    DOM.statTotal().textContent  = state.rollCount;
+    DOM.statAvg().textContent    = avg(state.rollSums) ?? '—';
+    DOM.statBest().textContent   = maxOf(state.rollSums) ?? '—';
+    DOM.statLow().textContent    = minOf(state.rollSums) ?? '—';
+    DOM.statStreak().textContent = state.maxStreak;
   }
 
-  /**
-   * Push a new roll total into the history strip.
-   * Trims oldest entries if we exceed MAX_HISTORY.
-   */
-  function pushHistoryBadge(total, isMax) {
+  function pushBadge(total, isMax) {
     const strip = DOM.historyStrip();
 
-    // Demote the previously "latest" badge
+    // Demote the previous "latest" badge
     const prev = strip.querySelector('.badge--latest');
     if (prev) prev.classList.remove('badge--latest');
 
@@ -880,12 +948,15 @@
 
     strip.appendChild(badge);
 
+    // Keep strip trimmed
     while (strip.children.length > CONFIG.MAX_HISTORY) {
       strip.removeChild(strip.firstChild);
     }
+
+    // Auto-scroll right to show newest badge
+    strip.scrollLeft = strip.scrollWidth;
   }
 
-  /** Sync aria-pressed and .active class on picker buttons */
   function refreshPickerUI() {
     DOM.pickerBtns().forEach(btn => {
       const active = parseInt(btn.dataset.count) === state.diceCount;
@@ -899,48 +970,34 @@
   // ============================================================
 
   /**
-   * Kick off the roll animation on a single die element and
-   * assign it a new face value in state.
-   *
-   * Everything else (stats, history, re-enabling the button)
-   * is handled by the caller after the animation completes.
-   *
-   * @param {HTMLElement} dieEl
-   * @param {number}      index  which slot in state.values to update
+   * Core: animate one die and assign it a new value.
+   * All public roll functions go through here.
    */
   function triggerRoll(dieEl, index) {
     if (!dieEl) {
-      console.error(`triggerRoll: no element passed for index ${index}`);
+      console.error(`triggerRoll: no element at index ${index}`);
       return;
     }
 
-    // Re-trigger CSS animation by removing the class first
+    // Force re-trigger even if class is already present
     dieEl.classList.remove('rolling');
-    void dieEl.offsetWidth;           // force layout flush
+    void dieEl.offsetWidth;
     dieEl.classList.add('rolling');
 
-    // Decide result now so it's ready when applyPips fires
-    const newValue     = rollD6();
-    state.values[index] = newValue;
+    const value = rollD6();
+    state.values[index] = value;
 
-    applyPips(dieEl, newValue, true);
-
-    // Clean up the animation class so it can fire again next time
+    applyPips(dieEl, value, true);
     setTimeout(() => dieEl.classList.remove('rolling'), CONFIG.ROLL_MS);
   }
 
-  /** Roll every die currently on the table */
   function rollAll() {
-    if (state.isRolling) {
-      showToast('Still rolling — wait a moment.');
-      return;
-    }
+    if (state.isRolling) { showToast('Still rolling — hold on!'); return; }
 
     const dice = DOM.dice();
-
-    // Sanity check: DOM should always match state.diceCount
     if (dice.length !== state.diceCount) {
-      console.error('rollAll: DOM/state mismatch — forcing re-render.');
+      // DOM/state drift — recover by re-rendering
+      console.warn('rollAll: dice count mismatch, re-rendering.');
       renderDice();
       return;
     }
@@ -958,33 +1015,37 @@
       const total = sum(vals);
       const isMax = total === state.diceCount * 6;
 
+      // Update streak tracking
+      if (isMax) {
+        state.streakCount++;
+        if (state.streakCount > state.maxStreak) state.maxStreak = state.streakCount;
+      } else {
+        state.streakCount = 0;
+      }
+
       state.rollCount++;
       state.rollSums.push(total);
 
       refreshResult();
       refreshStats();
-      pushHistoryBadge(total, isMax);
+      pushBadge(total, isMax);
 
-      if (isMax) showToast('🎲 Maximum roll! All sixes!');
-    }, CONFIG.ROLL_MS + 60);
+      if (isMax)             showToast('🎲 Maximum roll! All sixes!');
+      else if (total === state.diceCount) showToast('💀 Snake eyes!');
+    }, CONFIG.ROLL_MS + 55);
   }
 
-  /** Re-roll a single die by its index (0-based) */
   function rollSingle(index) {
     if (index < 0 || index >= state.diceCount) {
-      console.error(`rollSingle: index ${index} is out of range.`);
+      console.error(`rollSingle: index ${index} out of range`);
       return;
     }
-
-    if (state.isRolling) {
-      showToast('Wait for the current roll to finish.');
-      return;
-    }
+    if (state.isRolling) { showToast('Wait for the roll to finish.'); return; }
 
     const dieEl = DOM.dice()[index];
     if (!dieEl) {
-      console.error(`rollSingle: no die element found at index ${index}.`);
-      showToast('Could not find that die. Try refreshing.');
+      console.error(`rollSingle: no die at index ${index}`);
+      showToast('Die not found. Try refreshing.');
       return;
     }
 
@@ -1003,27 +1064,22 @@
 
       refreshResult();
       refreshStats();
-      pushHistoryBadge(total, isMax);
-    }, CONFIG.ROLL_MS + 60);
+      pushBadge(total, isMax);
+    }, CONFIG.ROLL_MS + 55);
   }
 
   // ============================================================
   // DICE COUNT
   // ============================================================
-
-  /** Switch to N dice — validates input, updates state and DOM */
   function setDiceCount(n) {
     if (!isValidCount(n)) {
-      console.error(`setDiceCount: "${n}" is not valid.`);
-      showToast(`Dice count must be between ${CONFIG.MIN_DICE} and ${CONFIG.MAX_DICE}.`);
+      console.error(`setDiceCount: invalid count "${n}"`);
+      showToast(`Dice must be ${CONFIG.MIN_DICE}–${CONFIG.MAX_DICE}.`);
       return;
     }
-
-    if (n === state.diceCount) return; // already set — nothing to do
+    if (n === state.diceCount) return;
 
     state.diceCount = n;
-
-    // Grow the values array if needed (new dice start with a random face)
     while (state.values.length < n) state.values.push(rollD6());
 
     refreshPickerUI();
@@ -1033,34 +1089,30 @@
   // ============================================================
   // RESET
   // ============================================================
-
-  /** Wipe all history and start completely fresh */
   function resetEverything() {
-    if (state.isRolling) {
-      showToast('Cannot reset while rolling.');
-      return;
-    }
+    if (state.isRolling) { showToast('Cannot reset while rolling.'); return; }
 
-    state.rollCount = 0;
-    state.rollSums  = [];
-    state.values    = Array.from({ length: state.diceCount }, rollD6);
+    state.rollCount   = 0;
+    state.rollSums    = [];
+    state.streakCount = 0;
+    state.maxStreak   = 0;
+    state.values      = Array.from({ length: state.diceCount }, rollD6);
 
     DOM.historyStrip().innerHTML = '';
 
-    const v = DOM.resultValue();
+    const v = DOM.totalValue();
     v.classList.remove('visible', 'jackpot');
     v.textContent = '—';
 
-    const t = DOM.resultTag();
+    const t = DOM.totalTag();
     t.classList.remove('visible');
     t.textContent = '';
 
     refreshStats();
     renderDice();
-    showToast('Reset — fresh start!');
+    showToast('Reset — fresh start.');
   }
 
-  /** Clear just the history strip (stats are preserved) */
   function clearHistory() {
     DOM.historyStrip().innerHTML = '';
   }
@@ -1069,22 +1121,12 @@
   // KEYBOARD SHORTCUTS
   // ============================================================
   document.addEventListener('keydown', e => {
-    // Don't interfere when the user is tabbed to a button
     if (document.activeElement.tagName === 'BUTTON') return;
 
     switch (e.code) {
       case 'Space':
-      case 'Enter':
-        e.preventDefault();
-        rollAll();
-        break;
-
-      case 'KeyR':
-        e.preventDefault();
-        resetEverything();
-        break;
-
-      // Number keys re-roll individual dice
+      case 'Enter':  e.preventDefault(); rollAll(); break;
+      case 'KeyR':   e.preventDefault(); resetEverything(); break;
       case 'Digit1': rollSingle(0); break;
       case 'Digit2': if (state.diceCount >= 2) rollSingle(1); break;
       case 'Digit3': if (state.diceCount >= 3) rollSingle(2); break;
@@ -1093,21 +1135,19 @@
 
   // ============================================================
   // GLOBAL ERROR BOUNDARY
-  // Catches anything that slips through and shows a friendly message
-  // instead of leaving the user staring at a silent broken screen.
   // ============================================================
   window.addEventListener('error', ev => {
-    console.error('Uncaught error:', ev.error);
-    showToast('Something went wrong. Check the console for details.');
+    console.error('Uncaught:', ev.error);
+    showToast('Something went wrong. Check the console.');
   });
 
   window.addEventListener('unhandledrejection', ev => {
     console.error('Unhandled rejection:', ev.reason);
-    showToast('An async error occurred. Check the console for details.');
+    showToast('Async error. Check the console.');
   });
 
   // ============================================================
-  // INIT — run once when the page loads
+  // INIT
   // ============================================================
   (function init() {
     state.values = [rollD6()];
