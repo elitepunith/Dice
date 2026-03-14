@@ -428,4 +428,3 @@
     renderDice();
     refreshStats();
   })();
-</script>
